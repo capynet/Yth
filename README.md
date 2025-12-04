@@ -1,6 +1,6 @@
 # YT Sync
 
-Automatic YouTube video downloader with NAS upload support and CLI dashboard.
+Automatic YouTube video downloader with NAS upload support, CLI dashboard and desktop GUI.
 
 ## Features
 
@@ -10,6 +10,8 @@ Automatic YouTube video downloader with NAS upload support and CLI dashboard.
 - Separates Shorts (≤60s) into dedicated folder
 - Manual subtitles download (Spanish/English) embedded in MP4
 - Real-time CLI dashboard (htop-style)
+- Desktop GUI application (Flet/Flutter)
+- NAS configuration via GUI
 - Skips live streams automatically
 - YouTube API quota management with automatic backoff
 
@@ -21,23 +23,27 @@ Automatic YouTube video downloader with NAS upload support and CLI dashboard.
 
 ## Quick Install
 
+**Linux (Debian/Ubuntu):**
 ```bash
-# Install system dependencies
 sudo apt install python3 python3-pip python3-venv ffmpeg
+git clone <repo-url> yt-sync && cd yt-sync
+./install.sh
+```
 
-# Clone and install
-git clone <repo-url> yt-sync
-cd yt-sync
-chmod +x install.sh
+**macOS:**
+```bash
+brew install python3 ffmpeg
+git clone <repo-url> yt-sync && cd yt-sync
 ./install.sh
 ```
 
 The installer will:
-1. Create Python virtual environment
-2. Install dependencies
-3. Create `.env` from template
-4. Install `yt-sync` command globally
-5. Optionally set up systemd service for auto-start
+1. Verify Python 3.9+ and ffmpeg
+2. Create Python virtual environment
+3. Install all dependencies
+4. Create `.env` from template
+5. Install `yt-sync`, `yt-sync-gui` commands globally
+6. (Linux only) Optionally set up systemd service
 
 ## Manual Installation
 
