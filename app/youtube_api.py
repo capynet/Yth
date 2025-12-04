@@ -13,19 +13,109 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
+from app.config import settings
+
 logger = logging.getLogger(__name__)
 
-# Paths for credentials
-TOKEN_FILE = os.environ.get('YOUTUBE_TOKEN_FILE', '/app/youtube_token.json')
-CLIENT_SECRETS_FILE = os.environ.get('YOUTUBE_CLIENT_FILE', '/app/google-client.json')
+# Paths for credentials (from settings)
+TOKEN_FILE = settings.youtube_token_file
+CLIENT_SECRETS_FILE = settings.youtube_client_file
 
 # Cache for YouTube service
 _youtube_service = None
 _credentials = None
 
-# Quota management
+# Quota management (in-memory cache, persisted to DB)
 _quota_exceeded = False
 _quota_reset_time = None  # When quota will reset (midnight PT)
+_quota_used_today = 0  # Estimated quota units used today
+_quota_date = None  # Date of quota tracking
+_quota_loaded = False  # Whether we've loaded from DB
+DAILY_QUOTA_LIMIT = 10000  # Default YouTube API quota limit
+
+
+def _load_quota_state():
+    """Load quota state from database (sync version for startup)."""
+    global _quota_used_today, _quota_date, _quota_exceeded, _quota_reset_time, _quota_loaded
+
+    if _quota_loaded:
+        return
+
+    try:
+        from sqlalchemy import create_engine, select
+        from sqlalchemy.orm import Session
+        from app.config import DATA_DIR
+        from app.models import AppState
+
+        db_path = DATA_DIR / "data" / "videos.db"
+        if not db_path.exists():
+            _quota_loaded = True
+            return
+
+        engine = create_engine(f"sqlite:///{db_path}")
+        with Session(engine) as session:
+            result = session.execute(select(AppState).where(AppState.key == "youtube_quota"))
+            state = result.scalar_one_or_none()
+
+            if state:
+                data = json.loads(state.value)
+                saved_date = data.get('date')
+                today = datetime.utcnow().date().isoformat()
+
+                if saved_date == today:
+                    _quota_used_today = data.get('used', 0)
+                    _quota_date = datetime.utcnow().date()
+                    _quota_exceeded = data.get('exceeded', False)
+                    if data.get('reset_time'):
+                        _quota_reset_time = datetime.fromisoformat(data['reset_time'])
+                    logger.info(f"Loaded quota state from DB: {_quota_used_today}/{DAILY_QUOTA_LIMIT} used today")
+                else:
+                    _quota_used_today = 0
+                    _quota_date = datetime.utcnow().date()
+                    _quota_exceeded = False
+                    _quota_reset_time = None
+                    logger.info("New day - quota reset")
+
+        _quota_loaded = True
+    except Exception as e:
+        logger.debug(f"Could not load quota state (DB may not exist yet): {e}")
+        _quota_loaded = True
+
+
+def _save_quota_state():
+    """Save quota state to database (sync version)."""
+    try:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import Session
+        from app.config import DATA_DIR
+        from app.models import AppState
+
+        db_path = DATA_DIR / "data" / "videos.db"
+        if not db_path.exists():
+            return
+
+        data = {
+            'date': datetime.utcnow().date().isoformat(),
+            'used': _quota_used_today,
+            'exceeded': _quota_exceeded,
+            'reset_time': _quota_reset_time.isoformat() if _quota_reset_time else None,
+        }
+
+        engine = create_engine(f"sqlite:///{db_path}")
+        with Session(engine) as session:
+            from sqlalchemy import select
+            result = session.execute(select(AppState).where(AppState.key == "youtube_quota"))
+            state = result.scalar_one_or_none()
+
+            if state:
+                state.value = json.dumps(data)
+            else:
+                state = AppState(key="youtube_quota", value=json.dumps(data))
+                session.add(state)
+
+            session.commit()
+    except Exception as e:
+        logger.error(f"Error saving quota state: {e}")
 
 
 def mark_quota_exceeded():
@@ -42,6 +132,7 @@ def mark_quota_exceeded():
     tomorrow_pt = (now_pt + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
     _quota_reset_time = tomorrow_pt.astimezone(timezone.utc).replace(tzinfo=None)
 
+    _save_quota_state()
     logger.warning(f"YouTube API quota exceeded. Will retry after {tomorrow_pt.strftime('%Y-%m-%d %H:%M %Z')}")
 
 
@@ -68,6 +159,34 @@ def get_quota_status() -> dict:
         'exceeded': _quota_exceeded,
         'reset_time': _quota_reset_time.isoformat() if _quota_reset_time else None,
     }
+
+
+def _reset_quota_if_new_day():
+    """Reset quota counter if it's a new day."""
+    global _quota_used_today, _quota_date, _quota_exceeded
+    today = datetime.utcnow().date()
+    if _quota_date != today:
+        _quota_used_today = 0
+        _quota_date = today
+        # Also reset exceeded flag on new day
+        if _quota_exceeded and _quota_reset_time and datetime.utcnow() > _quota_reset_time:
+            _quota_exceeded = False
+            _quota_reset_time = None
+
+
+def add_quota_usage(units: int):
+    """Add to quota usage counter."""
+    global _quota_used_today
+    _reset_quota_if_new_day()
+    _quota_used_today += units
+    _save_quota_state()
+
+
+def get_quota_usage() -> tuple[int, int]:
+    """Get current quota usage (used, limit)."""
+    _load_quota_state()  # Load from DB if not yet loaded
+    _reset_quota_if_new_day()
+    return _quota_used_today, DAILY_QUOTA_LIMIT
 
 
 def get_credentials() -> Optional[Credentials]:
@@ -156,6 +275,7 @@ def get_subscriptions() -> list[dict]:
                 pageToken=next_page_token
             )
             response = request.execute()
+            add_quota_usage(1)  # subscriptions.list costs 1 unit
 
             for item in response.get('items', []):
                 snippet = item.get('snippet', {})
@@ -195,6 +315,7 @@ def get_channel_uploads_playlist(channel_id: str) -> Optional[str]:
             id=channel_id
         )
         response = request.execute()
+        add_quota_usage(1)  # channels.list costs 1 unit
 
         items = response.get('items', [])
         if items:
@@ -236,6 +357,7 @@ def get_recent_videos_from_channel(channel_id: str, days_back: int = 5, max_resu
             maxResults=max_results
         )
         response = request.execute()
+        add_quota_usage(1)  # playlistItems.list costs 1 unit
 
         for item in response.get('items', []):
             snippet = item.get('snippet', {})
@@ -300,6 +422,7 @@ def get_video_details(video_ids: list[str]) -> dict[str, dict]:
                 id=','.join(batch)
             )
             response = request.execute()
+            add_quota_usage(1)  # videos.list costs 1 unit
 
             for item in response.get('items', []):
                 video_id = item['id']

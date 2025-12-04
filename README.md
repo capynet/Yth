@@ -1,4 +1,6 @@
 # YT Sync
+`./yt-sync-gui`
+pkill -f yt-sync; ./yt-sync-gui
 
 Automatic YouTube video downloader with NAS upload support, CLI dashboard and desktop GUI.
 
@@ -7,7 +9,7 @@ Automatic YouTube video downloader with NAS upload support, CLI dashboard and de
 - Auto-downloads videos from YouTube subscriptions (via YouTube Data API)
 - Parallel downloads (3 concurrent)
 - Parallel NAS uploads via SMB (5 concurrent)
-- Separates Shorts (≤60s) into dedicated folder
+- Separates Shorts (<=60s) into dedicated folder
 - Manual subtitles download (Spanish/English) embedded in MP4
 - Real-time CLI dashboard (htop-style)
 - Desktop GUI application (Flet/Flutter)
@@ -15,42 +17,66 @@ Automatic YouTube video downloader with NAS upload support, CLI dashboard and de
 - Skips live streams automatically
 - YouTube API quota management with automatic backoff
 
-## Requirements
-
-- Linux/macOS
-- Python 3.9+
-- ffmpeg
-
 ## Quick Install
 
-**Linux (Debian/Ubuntu):**
+### One-Line Install (Recommended)
+
+The installer automatically detects your OS and installs all dependencies:
+
 ```bash
-sudo apt install python3 python3-pip python3-venv ffmpeg
 git clone <repo-url> yt-sync && cd yt-sync
 ./install.sh
 ```
 
-**macOS:**
+Supported systems:
+- **Debian/Ubuntu**: apt packages
+- **Fedora**: dnf packages
+- **Arch Linux**: pacman packages
+- **macOS**: Homebrew packages
+
+### Pre-built Packages
+
+#### Linux (.deb)
+
+Download the latest `.deb` from releases and install:
+
 ```bash
-brew install python3 ffmpeg
-git clone <repo-url> yt-sync && cd yt-sync
-./install.sh
+sudo dpkg -i yt-sync_1.0.0_amd64.deb
+sudo apt-get install -f  # Install dependencies if needed
 ```
 
-The installer will:
-1. Verify Python 3.9+ and ffmpeg
-2. Create Python virtual environment
-3. Install all dependencies
-4. Create `.env` from template
-5. Install `yt-sync`, `yt-sync-gui` commands globally
-6. (Linux only) Optionally set up systemd service
+#### macOS (.dmg)
+
+Download the latest `.dmg` from releases:
+
+1. Open the DMG file
+2. Drag 'YT Sync' to Applications
+3. Open from Applications or Spotlight
+
+Note: You may need to allow the app in System Preferences > Security & Privacy
 
 ## Manual Installation
 
 ### 1. Install system dependencies
 
+**Debian/Ubuntu:**
 ```bash
-sudo apt install python3 python3-pip python3-venv ffmpeg
+sudo apt install python3 python3-pip python3-venv ffmpeg libmpv2
+```
+
+**Fedora:**
+```bash
+sudo dnf install python3 python3-pip ffmpeg mpv-libs
+```
+
+**Arch Linux:**
+```bash
+sudo pacman -S python python-pip ffmpeg mpv
+```
+
+**macOS:**
+```bash
+brew install python3 ffmpeg mpv
 ```
 
 ### 2. Clone and configure
@@ -76,13 +102,14 @@ nano .env  # Edit with your configuration
    source venv/bin/activate
    python3 oauth_setup.py
    ```
-6. Authorize in browser → `youtube_token.json` will be created
+6. Authorize in browser -> `youtube_token.json` will be created
 
 ### 4. Install CLI globally
 
 ```bash
-chmod +x yt-sync yt-sync-service
+chmod +x yt-sync yt-sync-service yt-sync-gui
 sudo ln -sf $(pwd)/yt-sync /usr/local/bin/yt-sync
+sudo ln -sf $(pwd)/yt-sync-gui /usr/local/bin/yt-sync-gui
 ```
 
 ### 5. Start the service
@@ -156,12 +183,42 @@ Edit `.env` file:
 | `NAS_DELETE_AFTER_UPLOAD` | Delete local after upload | false |
 | `SHORTS_MAX_DURATION` | Max duration for shorts (seconds) | 60 |
 
+## Building Packages
+
+### Build .deb (Linux)
+
+```bash
+./build-deb.sh [version]
+
+# Example:
+./build-deb.sh 1.0.0
+# Output: dist/yt-sync_1.0.0_amd64.deb
+```
+
+### Build .dmg (macOS)
+
+Run on macOS only:
+
+```bash
+./build-macos.sh [version]
+
+# Example:
+./build-macos.sh 1.0.0
+# Output: dist/YT-Sync-1.0.0.dmg
+```
+
+Requirements for macOS build:
+- macOS 10.15+
+- Python 3.9+
+- Homebrew
+- create-dmg (installed automatically)
+
 ## How It Works
 
 1. **Auto-download (every hour)**: Scans your subscriptions and downloads new videos from the last 5 days
 2. **Download**: yt-dlp downloads in best quality with embedded metadata and subtitles
 3. **NAS Upload**: Videos are automatically uploaded via SMB (5 concurrent)
-4. **Shorts Separation**: Videos ≤60s go to `/shorts`, the rest to `/youtube`
+4. **Shorts Separation**: Videos <=60s go to `/shorts`, the rest to `/youtube`
 5. **Cleanup**: Local files are deleted after successful NAS upload
 
 ## API Endpoints
@@ -203,6 +260,8 @@ yt-sync/
 ├── .env.example           # Configuration template
 ├── requirements.txt
 ├── install.sh             # Installation script
+├── build-deb.sh           # Build .deb package
+├── build-macos.sh         # Build macOS .dmg
 ├── oauth_setup.py         # YouTube OAuth setup
 ├── yt-sync                # CLI command
 ├── yt-sync-gui            # Desktop GUI application
@@ -230,6 +289,10 @@ yt-sync/
 **Permission denied errors**
 - Make sure scripts are executable: `chmod +x yt-sync yt-sync-service`
 - Check file ownership in data/ and downloads/
+
+**GUI won't start (libmpv error)**
+- Install libmpv: `sudo apt install libmpv2`
+- If still failing, create symlink: `sudo ln -sf /usr/lib/x86_64-linux-gnu/libmpv.so.2 /usr/lib/x86_64-linux-gnu/libmpv.so.1`
 
 ## License
 

@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 # Upload queue and workers
 upload_queue: asyncio.Queue = asyncio.Queue()
 upload_workers: list[asyncio.Task] = []
-MAX_CONCURRENT_UPLOADS = 5
+MAX_CONCURRENT_UPLOADS = 3
 
 # Progress tracking (supports multiple concurrent uploads)
 active_uploads: dict[int, dict] = {}  # worker_id -> {video_id, title, bytes_sent, bytes_total, speed}
@@ -28,25 +28,25 @@ active_uploads: dict[int, dict] = {}  # worker_id -> {video_id, title, bytes_sen
 def get_smb_path(filename: str, is_short: bool = False) -> str:
     """Build SMB path for a file."""
     if is_short:
-        nas_path = settings.nas_shorts_path.strip("/")
+        remote_path = settings.smb_shorts_path.strip("/")
     else:
-        nas_path = settings.nas_path.strip("/")
+        remote_path = settings.smb_path.strip("/")
 
-    if nas_path:
-        return f"\\\\{settings.nas_host}\\{settings.nas_share}\\{nas_path}\\{filename}"
-    return f"\\\\{settings.nas_host}\\{settings.nas_share}\\{filename}"
+    if remote_path:
+        return f"\\\\{settings.smb_host}\\{settings.smb_share}\\{remote_path}\\{filename}"
+    return f"\\\\{settings.smb_host}\\{settings.smb_share}\\{filename}"
 
 
 def get_smb_dir(is_short: bool = False) -> str:
     """Get SMB directory path."""
     if is_short:
-        nas_path = settings.nas_shorts_path.strip("/")
+        remote_path = settings.smb_shorts_path.strip("/")
     else:
-        nas_path = settings.nas_path.strip("/")
+        remote_path = settings.smb_path.strip("/")
 
-    if nas_path:
-        return f"\\\\{settings.nas_host}\\{settings.nas_share}\\{nas_path}"
-    return f"\\\\{settings.nas_host}\\{settings.nas_share}"
+    if remote_path:
+        return f"\\\\{settings.smb_host}\\{settings.smb_share}\\{remote_path}"
+    return f"\\\\{settings.smb_host}\\{settings.smb_share}"
 
 
 def is_short_video(duration: int) -> bool:
@@ -56,29 +56,63 @@ def is_short_video(duration: int) -> bool:
 
 def init_smb_session():
     """Initialize SMB session with NAS credentials."""
-    if not settings.nas_enabled:
+    if not settings.smb_enabled:
         return False
 
-    if not settings.nas_host or not settings.nas_user:
-        logger.warning("NAS not configured properly (missing host or user)")
+    if not settings.smb_host or not settings.smb_user:
+        logger.warning("SMB not configured properly (missing host or user)")
         return False
 
     try:
         register_session(
-            settings.nas_host,
-            username=settings.nas_user,
-            password=settings.nas_password,
+            settings.smb_host,
+            username=settings.smb_user,
+            password=settings.smb_password,
         )
-        logger.info(f"SMB session registered for {settings.nas_host}")
+        logger.info(f"SMB session registered for {settings.smb_host}")
         return True
     except Exception as e:
         logger.error(f"Failed to register SMB session: {e}")
         return False
 
 
-def ensure_nas_directory(is_short: bool = False):
-    """Ensure the target directory exists on NAS."""
-    path = settings.nas_shorts_path if is_short else settings.nas_path
+def test_smb_connection() -> tuple[bool, str]:
+    """Test SMB connection and return (success, message)."""
+    if not settings.smb_enabled:
+        return False, "DISABLED"
+
+    if not settings.smb_host or not settings.smb_user:
+        return False, "NOT CONFIGURED"
+
+    try:
+        # Try to register session
+        register_session(
+            settings.smb_host,
+            username=settings.smb_user,
+            password=settings.smb_password,
+        )
+
+        # Try to access the share directory
+        smb_dir = get_smb_dir(is_short=False)
+        stat(smb_dir)
+
+        return True, "OK"
+    except Exception as e:
+        error_msg = str(e)
+        if "STATUS_LOGON_FAILURE" in error_msg:
+            return False, "AUTH FAILED"
+        elif "timed out" in error_msg.lower() or "unreachable" in error_msg.lower():
+            return False, "UNREACHABLE"
+        elif "STATUS_BAD_NETWORK_NAME" in error_msg:
+            return False, "SHARE NOT FOUND"
+        else:
+            logger.error(f"SMB connection test failed: {e}")
+            return False, "ERROR"
+
+
+def ensure_smb_directory(is_short: bool = False):
+    """Ensure the target directory exists on SMB share."""
+    path = settings.smb_shorts_path if is_short else settings.smb_path
     if not path or path == "/":
         return True
 
@@ -106,7 +140,7 @@ def upload_file_to_nas(local_path: str, remote_filename: str, video_title: str =
 
     try:
         # Ensure target directory exists
-        ensure_nas_directory(is_short)
+        ensure_smb_directory(is_short)
         remote_path = get_smb_path(remote_filename, is_short)
         local_size = os.path.getsize(local_path)
         logger.info(f"[Worker {worker_id}] Uploading {local_path} to {remote_path} ({local_size / 1024 / 1024:.1f} MB)")
@@ -233,14 +267,17 @@ async def process_upload(video_id: int, worker_id: int = 0):
             video.upload_error = None
             logger.info(f"Upload completed for {video.youtube_id}")
 
-            # Delete local file if configured
-            if settings.nas_delete_after_upload:
-                try:
-                    os.remove(video.file_path)
-                    logger.info(f"Deleted local file: {video.file_path}")
-                    video.file_path = None
-                except Exception as e:
-                    logger.error(f"Failed to delete local file: {e}")
+            # Delete local file if configured AND all enabled uploads are complete
+            if settings.delete_after_upload and video.file_path:
+                # Check if FTP is enabled - if so, only delete if FTP upload is also done
+                ftp_done = not settings.ftp_enabled or video.ftp_status == "uploaded"
+                if ftp_done:
+                    try:
+                        os.remove(video.file_path)
+                        logger.info(f"Deleted local file: {video.file_path}")
+                        video.file_path = None
+                    except Exception as e:
+                        logger.error(f"Failed to delete local file: {e}")
         else:
             video.upload_status = "error"
             video.upload_error = result_msg
@@ -259,8 +296,8 @@ async def upload_worker(worker_id: int):
         return
 
     # Ensure both directories exist (videos and shorts)
-    ensure_nas_directory(is_short=False)
-    ensure_nas_directory(is_short=True)
+    ensure_smb_directory(is_short=False)
+    ensure_smb_directory(is_short=True)
 
     while True:
         video_id = await upload_queue.get()
@@ -280,11 +317,11 @@ async def start_upload_worker():
     """Start multiple background upload workers if NAS is enabled."""
     global upload_workers
 
-    if not settings.nas_enabled:
-        logger.info("NAS upload disabled")
+    if not settings.smb_enabled:
+        logger.info("SMB upload disabled")
         return
 
-    logger.info(f"Starting {MAX_CONCURRENT_UPLOADS} NAS upload workers...")
+    logger.info(f"Starting {MAX_CONCURRENT_UPLOADS} SMB upload workers...")
 
     for i in range(MAX_CONCURRENT_UPLOADS):
         worker = asyncio.create_task(upload_worker(i + 1))
@@ -295,7 +332,7 @@ async def start_upload_worker():
 
 async def queue_upload(video_id: int):
     """Add a video to the upload queue."""
-    if not settings.nas_enabled:
+    if not settings.smb_enabled:
         return
 
     logger.info(f"Queuing upload: video_id={video_id}")
@@ -304,7 +341,7 @@ async def queue_upload(video_id: int):
 
 async def check_pending_uploads():
     """Check for completed downloads that need uploading."""
-    if not settings.nas_enabled:
+    if not settings.smb_enabled:
         return
 
     async with async_session() as session:

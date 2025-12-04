@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/capy/Yth/venv/bin/python3
 """
 YT Sync GUI - Desktop application for monitoring and configuring YT Sync.
 """
@@ -9,8 +9,7 @@ import os
 # Add the app directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import flet as ft
-from app.gui import main
+from app.gui_gtk import main
 
 if __name__ == "__main__":
-    ft.app(target=main)
+    main()

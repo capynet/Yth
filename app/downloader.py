@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import async_session
 from app.models import Video
-from app.nas_upload import queue_upload
+from app.smb_upload import queue_upload
+from app.ftp_upload import queue_ftp_upload
 
 logger = logging.getLogger(__name__)
 
@@ -144,6 +145,7 @@ async def download_video(video_id: int, worker_id: int = 0):
         logger.info(f"Downloading: {video.title} ({video.youtube_id})")
 
         video.status = "downloading"
+        video.download_attempts += 1
         await session.commit()
 
         # Initialize progress tracking
@@ -200,9 +202,12 @@ async def download_video(video_id: int, worker_id: int = 0):
             if worker_id in active_downloads:
                 del active_downloads[worker_id]
 
-            # Queue for NAS upload if enabled
-            if settings.nas_enabled and file_found:
-                await queue_upload(video.id)
+            # Queue for uploads if enabled
+            if file_found:
+                if settings.smb_enabled:
+                    await queue_upload(video.id)
+                if settings.ftp_enabled:
+                    await queue_ftp_upload(video.id)
             return
 
         except Exception as e:
@@ -259,8 +264,82 @@ async def start_download_worker():
 
     logger.info(f"{num_workers} download workers started (concurrent downloads enabled)")
 
+    # Load pending downloads from database into queue
+    await load_pending_downloads()
+
+    # Retry failed downloads with recoverable errors
+    await retry_failed_downloads()
+
+
+async def load_pending_downloads():
+    """Load videos with status 'pending' from database into download queue."""
+    async with async_session() as session:
+        result = await session.execute(
+            select(Video)
+            .where(Video.status == "pending")
+            .order_by(Video.created_at.asc())
+        )
+        pending_videos = result.scalars().all()
+
+        if pending_videos:
+            logger.info(f"Loading {len(pending_videos)} pending downloads into queue...")
+            for video in pending_videos:
+                await download_queue.put(video.id)
+            logger.info(f"Queued {len(pending_videos)} pending downloads")
+        else:
+            logger.info("No pending downloads to load")
+
 
 async def queue_download(video_id: int):
     """Add a video to the download queue."""
     logger.info(f"Queuing download: video_id={video_id}")
     await download_queue.put(video_id)
+
+
+# Errors that are recoverable and worth retrying
+RECOVERABLE_ERRORS = [
+    "Broken pipe",
+    "timed out",
+    "Connection reset",
+    "Connection refused",
+    "Network is unreachable",
+    "Temporary failure",
+    "503",
+    "502",
+    "500",
+]
+
+MAX_DOWNLOAD_ATTEMPTS = 3
+
+
+async def retry_failed_downloads():
+    """Retry downloads that failed with recoverable errors."""
+    from sqlalchemy import and_, or_
+
+    async with async_session() as session:
+        # Build conditions for recoverable errors
+        error_conditions = [Video.error_message.ilike(f"%{err}%") for err in RECOVERABLE_ERRORS]
+
+        result = await session.execute(
+            select(Video)
+            .where(
+                and_(
+                    Video.status == "error",
+                    Video.download_attempts < MAX_DOWNLOAD_ATTEMPTS,
+                    or_(*error_conditions)
+                )
+            )
+            .order_by(Video.created_at.asc())
+        )
+        failed_videos = result.scalars().all()
+
+        if failed_videos:
+            logger.info(f"Retrying {len(failed_videos)} failed downloads with recoverable errors...")
+            for video in failed_videos:
+                video.status = "pending"
+                video.error_message = None
+                await download_queue.put(video.id)
+            await session.commit()
+            logger.info(f"Queued {len(failed_videos)} videos for retry")
+        else:
+            logger.info("No recoverable failed downloads to retry")

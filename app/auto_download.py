@@ -233,6 +233,38 @@ async def get_stats() -> dict:
         )
         today_uploaded = today_uploaded_result.scalar()
 
+        # FTP Upload stats
+        ftp_uploaded_result = await session.execute(
+            select(func.count(Video.id)).where(Video.ftp_status == "uploaded")
+        )
+        ftp_uploaded = ftp_uploaded_result.scalar()
+
+        ftp_pending_result = await session.execute(
+            select(func.count(Video.id)).where(
+                and_(
+                    Video.status == "completed",
+                    Video.ftp_status.in_(["pending", "uploading"])
+                )
+            )
+        )
+        ftp_pending = ftp_pending_result.scalar()
+
+        ftp_error_result = await session.execute(
+            select(func.count(Video.id)).where(Video.ftp_status == "error")
+        )
+        ftp_errors = ftp_error_result.scalar()
+
+        # Today's FTP uploads
+        today_ftp_result = await session.execute(
+            select(func.count(Video.id)).where(
+                and_(
+                    Video.ftp_status == "uploaded",
+                    Video.ftp_uploaded_at >= today_start
+                )
+            )
+        )
+        today_ftp = today_ftp_result.scalar()
+
         # Total file size (for completed videos with file_size)
         size_result = await session.execute(
             select(func.sum(Video.file_size)).where(Video.file_size.isnot(None))
@@ -262,6 +294,12 @@ async def get_stats() -> dict:
                 "pending": upload_pending,
                 "errors": upload_errors,
                 "today": today_uploaded,
+            },
+            "ftp": {
+                "uploaded": ftp_uploaded,
+                "pending": ftp_pending,
+                "errors": ftp_errors,
+                "today": today_ftp,
             },
             "total_size_mb": round(total_size / 1024 / 1024, 1) if total_size else 0,
             "auto_download": {

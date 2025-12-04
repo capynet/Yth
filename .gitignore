@@ -21,3 +21,10 @@ youtube_token.json
 
 # macOS
 .DS_Store
+
+# Build artifacts
+build/
+dist/
+*.deb
+*.dmg
+*.spec
