@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime, date
+from typing import Optional
 
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Auto-download state
 auto_download_enabled: bool = True
-last_run: datetime | None = None
+last_run: Optional[datetime] = None
 last_run_personalized: bool = False
 last_run_videos_queued: int = 0
 last_run_source: str = "none"  # "api", "scraper", or "none"

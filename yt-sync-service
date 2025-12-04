@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+"""
+YT Sync Service - Main entry point for the background service.
+Runs the FastAPI app with uvicorn.
+"""
+
+import sys
+import os
+
+# Add the app directory to path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import uvicorn
+from app.config import settings, BASE_DIR
+
+if __name__ == "__main__":
+    # Ensure directories exist
+    os.makedirs(settings.download_dir, exist_ok=True)
+    os.makedirs(BASE_DIR / "data", exist_ok=True)
+
+    print(f"YT Sync Service starting...")
+    print(f"  Base directory: {BASE_DIR}")
+    print(f"  Download directory: {settings.download_dir}")
+    print(f"  Database: {settings.database_url}")
+    print(f"  NAS enabled: {settings.nas_enabled}")
+
+    uvicorn.run(
+        "app.main:app",
+        host="127.0.0.1",
+        port=8000,
+        log_level="info",
+    )

@@ -1,4 +1,4 @@
-# YT Downloader
+# YT Sync
 
 Automatic YouTube video downloader with NAS upload support and CLI dashboard.
 
@@ -13,33 +13,53 @@ Automatic YouTube video downloader with NAS upload support and CLI dashboard.
 - Skips live streams automatically
 - YouTube API quota management with automatic backoff
 
-## Quick Install (Linux)
+## Requirements
+
+- Linux/macOS
+- Python 3.9+
+- ffmpeg
+
+## Quick Install
 
 ```bash
-git clone <repo-url> yt-downloader
-cd yt-downloader
+# Install system dependencies
+sudo apt install python3 python3-pip python3-venv ffmpeg
+
+# Clone and install
+git clone <repo-url> yt-sync
+cd yt-sync
 chmod +x install.sh
 ./install.sh
 ```
 
 The installer will:
-1. Check dependencies (Docker, Docker Compose)
-2. Create `.env` from template
-3. Install `yt-sync` command globally (`/usr/local/bin/yt-sync`)
-4. Optionally set up systemd service for auto-start
+1. Create Python virtual environment
+2. Install dependencies
+3. Create `.env` from template
+4. Install `yt-sync` command globally
+5. Optionally set up systemd service for auto-start
 
 ## Manual Installation
 
-### 1. Clone and configure
+### 1. Install system dependencies
 
 ```bash
-git clone <repo-url> yt-downloader
-cd yt-downloader
+sudo apt install python3 python3-pip python3-venv ffmpeg
+```
+
+### 2. Clone and configure
+
+```bash
+git clone <repo-url> yt-sync
+cd yt-sync
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 cp .env.example .env
 nano .env  # Edit with your configuration
 ```
 
-### 2. YouTube API Setup (optional, for subscription downloads)
+### 3. YouTube API Setup (optional, for subscription downloads)
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a project and enable YouTube Data API v3
@@ -47,23 +67,25 @@ nano .env  # Edit with your configuration
 4. Download as `google-client.json` in project root
 5. Run OAuth setup:
    ```bash
-   pip3 install google-api-python-client google-auth-oauthlib google-auth-httplib2
+   source venv/bin/activate
    python3 oauth_setup.py
    ```
 6. Authorize in browser → `youtube_token.json` will be created
 
-### 3. Start the service
-
-```bash
-docker compose up -d
-```
-
 ### 4. Install CLI globally
 
 ```bash
-chmod +x yt-sync
+chmod +x yt-sync yt-sync-service
 sudo ln -sf $(pwd)/yt-sync /usr/local/bin/yt-sync
 ```
+
+### 5. Start the service
+
+```bash
+./yt-sync-service
+```
+
+Or install as systemd service (see below).
 
 ## Usage
 
@@ -74,34 +96,33 @@ sudo ln -sf $(pwd)/yt-sync /usr/local/bin/yt-sync
 yt-sync
 
 # Single snapshot (no watch)
-yt-sync --no-watch
-
-# Custom refresh interval (seconds)
-yt-sync -i 5
+yt-sync --help
 ```
 
-### Service Management
+### Service Management (systemd)
 
-**With systemd (recommended for Linux servers):**
 ```bash
-sudo systemctl start yt-downloader
-sudo systemctl stop yt-downloader
-sudo systemctl restart yt-downloader
-sudo systemctl status yt-downloader
+# Start/stop
+sudo systemctl start yt-sync
+sudo systemctl stop yt-sync
+sudo systemctl restart yt-sync
+sudo systemctl status yt-sync
 
 # Enable auto-start on boot
-sudo systemctl enable yt-downloader
+sudo systemctl enable yt-sync
 
 # View logs
-journalctl -u yt-downloader -f
+journalctl -u yt-sync -f
 ```
 
-**With Docker Compose:**
+### Manual service (without systemd)
+
 ```bash
-docker compose up -d      # Start
-docker compose down       # Stop
-docker compose restart    # Restart
-docker compose logs -f    # View logs
+# Start in foreground
+./yt-sync-service
+
+# Start in background
+nohup ./yt-sync-service > /dev/null 2>&1 &
 ```
 
 ## Configuration
@@ -132,6 +153,8 @@ Edit `.env` file:
 
 ## API Endpoints
 
+The service exposes a REST API on `http://127.0.0.1:8000`:
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/videos` | GET | List all videos |
@@ -144,12 +167,11 @@ Edit `.env` file:
 | `/api/downloads/progress` | GET | Download progress |
 | `/api/auto-download/run` | POST | Trigger auto-download |
 | `/api/auto-download/status` | GET | Auto-download status |
-| `/api/youtube-api/status` | GET | YouTube API status |
 
 ## File Structure
 
 ```
-yt-downloader/
+yt-sync/
 ├── app/                    # Application code
 │   ├── main.py            # FastAPI app
 │   ├── downloader.py      # yt-dlp wrapper
@@ -160,32 +182,39 @@ yt-downloader/
 │   ├── config.py          # Settings
 │   ├── database.py        # SQLite setup
 │   └── models.py          # SQLAlchemy models
-├── data/                   # SQLite database (gitignored)
-├── downloads/              # Downloaded videos (gitignored)
-├── docker-compose.yml
-├── Dockerfile
+├── venv/                   # Python virtual environment
+├── data/                   # SQLite database
+├── downloads/              # Downloaded videos
 ├── .env                    # Configuration (gitignored)
 ├── .env.example           # Configuration template
+├── requirements.txt
 ├── install.sh             # Installation script
 ├── oauth_setup.py         # YouTube OAuth setup
-├── yt-sync                # CLI wrapper script (watch mode default)
+├── yt-sync                # CLI command
+├── yt-sync-service        # Service entry point
+├── yt-sync.service        # Systemd unit file
 └── README.md
 ```
 
 ## Troubleshooting
 
 **CLI says "Connecting to API..."**
-- Make sure the Docker container is running: `docker compose ps`
+- Make sure the service is running: `systemctl status yt-sync`
+- Or start manually: `./yt-sync-service`
 
 **Uploads stuck at "X videos waiting"**
 - Check NAS connectivity: `ping <NAS_HOST>`
 - Check SMB credentials in `.env`
-- View logs: `docker compose logs | grep -i upload`
+- View logs: `journalctl -u yt-sync -f`
 
 **YouTube API quota exceeded**
 - Quota resets at midnight Pacific Time
 - CLI shows reset time when quota is exceeded
 - App will automatically resume when quota resets
+
+**Permission denied errors**
+- Make sure scripts are executable: `chmod +x yt-sync yt-sync-service`
+- Check file ownership in data/ and downloads/
 
 ## License
 

@@ -1,13 +1,19 @@
-#!/bin/bash
-# YT Sync - YouTube Downloader CLI
-# Symlink to /usr/local/bin/yt-sync for global access
+#!/usr/bin/env python3
+"""
+YT Sync CLI - Dashboard for monitoring downloads and uploads.
+"""
 
-# Find the project directory (where this script lives)
-SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")" && pwd)"
+import sys
+import os
 
-# Default to watch mode (-w) if no arguments provided
-if [ $# -eq 0 ]; then
-    cd "$SCRIPT_DIR" && docker compose exec -T backend python3 /app/app/ytcli.py -w
-else
-    cd "$SCRIPT_DIR" && docker compose exec -T backend python3 /app/app/ytcli.py "$@"
-fi
+# Add the app directory to path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Import and run the CLI
+from app.ytcli import main
+
+if __name__ == "__main__":
+    # Default to watch mode if no arguments
+    if len(sys.argv) == 1:
+        sys.argv.append("-w")
+    main()
