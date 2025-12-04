@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Data
+data/
+downloads/
+
+# Google OAuth credentials (sensitive!)
+google-client.json
+youtube_token.json
+
+# Environment
+.env
+
+# IDE
+.idea/
+.vscode/
+
+# macOS
+.DS_Store

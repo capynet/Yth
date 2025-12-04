@@ -1,0 +1,13 @@
+#!/bin/bash
+# YT Sync - YouTube Downloader CLI
+# Symlink to /usr/local/bin/yt-sync for global access
+
+# Find the project directory (where this script lives)
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")" && pwd)"
+
+# Default to watch mode (-w) if no arguments provided
+if [ $# -eq 0 ]; then
+    cd "$SCRIPT_DIR" && docker compose exec -T backend python3 /app/app/ytcli.py -w
+else
+    cd "$SCRIPT_DIR" && docker compose exec -T backend python3 /app/app/ytcli.py "$@"
+fi
