@@ -1,14 +1,14 @@
 #!/bin/bash
-# YT Sync Installation Script
+# Tube Sync Installation Script
 # Automatic installation for Linux and macOS
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SERVICE_NAME="yt-sync"
+SERVICE_NAME="tubesync"
 
 echo "==================================="
-echo "YT Sync Installation"
+echo "Tube Sync Installation"
 echo "==================================="
 
 # Check if running as root
@@ -184,19 +184,19 @@ configure_scripts() {
     echo ""
     echo "Configuring scripts..."
 
-    chmod +x "$SCRIPT_DIR/yt-sync"
-    chmod +x "$SCRIPT_DIR/yt-sync-service"
-    chmod +x "$SCRIPT_DIR/yt-sync-gui"
+    chmod +x "$SCRIPT_DIR/tubesync"
+    chmod +x "$SCRIPT_DIR/tubesync-service"
+    chmod +x "$SCRIPT_DIR/tubesync-gui"
 
     # Update shebang to use venv python
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' "1s|.*|#!$SCRIPT_DIR/venv/bin/python3|" "$SCRIPT_DIR/yt-sync"
-        sed -i '' "1s|.*|#!$SCRIPT_DIR/venv/bin/python3|" "$SCRIPT_DIR/yt-sync-service"
-        sed -i '' "1s|.*|#!$SCRIPT_DIR/venv/bin/python3|" "$SCRIPT_DIR/yt-sync-gui"
+        sed -i '' "1s|.*|#!$SCRIPT_DIR/venv/bin/python3|" "$SCRIPT_DIR/tubesync"
+        sed -i '' "1s|.*|#!$SCRIPT_DIR/venv/bin/python3|" "$SCRIPT_DIR/tubesync-service"
+        sed -i '' "1s|.*|#!$SCRIPT_DIR/venv/bin/python3|" "$SCRIPT_DIR/tubesync-gui"
     else
-        sed -i "1s|.*|#!$SCRIPT_DIR/venv/bin/python3|" "$SCRIPT_DIR/yt-sync"
-        sed -i "1s|.*|#!$SCRIPT_DIR/venv/bin/python3|" "$SCRIPT_DIR/yt-sync-service"
-        sed -i "1s|.*|#!$SCRIPT_DIR/venv/bin/python3|" "$SCRIPT_DIR/yt-sync-gui"
+        sed -i "1s|.*|#!$SCRIPT_DIR/venv/bin/python3|" "$SCRIPT_DIR/tubesync"
+        sed -i "1s|.*|#!$SCRIPT_DIR/venv/bin/python3|" "$SCRIPT_DIR/tubesync-service"
+        sed -i "1s|.*|#!$SCRIPT_DIR/venv/bin/python3|" "$SCRIPT_DIR/tubesync-gui"
     fi
     echo "[OK] Scripts configured"
 }
@@ -207,13 +207,13 @@ install_global_commands() {
     echo "Installing commands globally..."
 
     if [ -w /usr/local/bin ]; then
-        ln -sf "$SCRIPT_DIR/yt-sync" /usr/local/bin/yt-sync
-        ln -sf "$SCRIPT_DIR/yt-sync-gui" /usr/local/bin/yt-sync-gui
+        ln -sf "$SCRIPT_DIR/tubesync" /usr/local/bin/tubesync
+        ln -sf "$SCRIPT_DIR/tubesync-gui" /usr/local/bin/tubesync-gui
         echo "[OK] Commands installed to /usr/local/bin/"
     else
         echo "Need sudo to install to /usr/local/bin..."
-        sudo ln -sf "$SCRIPT_DIR/yt-sync" /usr/local/bin/yt-sync
-        sudo ln -sf "$SCRIPT_DIR/yt-sync-gui" /usr/local/bin/yt-sync-gui
+        sudo ln -sf "$SCRIPT_DIR/tubesync" /usr/local/bin/tubesync
+        sudo ln -sf "$SCRIPT_DIR/tubesync-gui" /usr/local/bin/tubesync-gui
         echo "[OK] Commands installed to /usr/local/bin/"
     fi
 }
@@ -231,24 +231,24 @@ setup_systemd() {
         echo ""
         echo "Creating systemd service..."
 
-        SERVICE_FILE="/tmp/yt-sync.service"
-        cp "$SCRIPT_DIR/yt-sync.service" "$SERVICE_FILE"
+        SERVICE_FILE="/tmp/tubesync.service"
+        cp "$SCRIPT_DIR/tubesync.service" "$SERVICE_FILE"
 
         sed -i "s|__USER__|$USER|g" "$SERVICE_FILE"
         sed -i "s|__GROUP__|$(id -gn)|g" "$SERVICE_FILE"
         sed -i "s|__INSTALL_DIR__|$SCRIPT_DIR|g" "$SERVICE_FILE"
 
-        sudo mv "$SERVICE_FILE" /etc/systemd/system/yt-sync.service
+        sudo mv "$SERVICE_FILE" /etc/systemd/system/tubesync.service
         sudo systemctl daemon-reload
-        sudo systemctl enable yt-sync
+        sudo systemctl enable tubesync
         echo "[OK] Systemd service installed and enabled"
         echo ""
         echo "Service commands:"
-        echo "  sudo systemctl start yt-sync    # Start the service"
-        echo "  sudo systemctl stop yt-sync     # Stop the service"
-        echo "  sudo systemctl restart yt-sync  # Restart the service"
-        echo "  sudo systemctl status yt-sync   # Check status"
-        echo "  journalctl -u yt-sync -f        # View logs"
+        echo "  sudo systemctl start tubesync    # Start the service"
+        echo "  sudo systemctl stop tubesync     # Stop the service"
+        echo "  sudo systemctl restart tubesync  # Restart the service"
+        echo "  sudo systemctl status tubesync   # Check status"
+        echo "  journalctl -u tubesync -f        # View logs"
         SYSTEMD_INSTALLED=true
     fi
 }
@@ -261,21 +261,21 @@ print_completion() {
     echo "==================================="
     echo ""
     echo "Available commands:"
-    echo "  yt-sync-service    Start the background service"
-    echo "  yt-sync            CLI dashboard (terminal)"
-    echo "  yt-sync-gui        Desktop GUI application"
+    echo "  tubesync-service    Start the background service"
+    echo "  tubesync            CLI dashboard (terminal)"
+    echo "  tubesync-gui        Desktop GUI application"
     echo ""
     echo "Quick start:"
     echo "  1. Edit $SCRIPT_DIR/.env with your NAS configuration"
     echo "  2. (Optional) Copy google-client.json for YouTube API"
     echo "  3. Start the service:"
     if [[ "$SYSTEMD_INSTALLED" == "true" ]]; then
-        echo "     sudo systemctl start yt-sync"
+        echo "     sudo systemctl start tubesync"
     else
-        echo "     yt-sync-service &"
+        echo "     tubesync-service &"
     fi
-    echo "  4. Monitor with CLI: yt-sync"
-    echo "     Or use the GUI: yt-sync-gui"
+    echo "  4. Monitor with CLI: tubesync"
+    echo "     Or use the GUI: tubesync-gui"
     echo ""
 }
 

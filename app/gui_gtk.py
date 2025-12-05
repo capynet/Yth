@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-YT Sync GUI - Integrated desktop application.
+Tube Sync GUI - Integrated desktop application.
 All-in-one: GUI + Downloads + Auto-sync, with systray support.
 """
 
@@ -26,7 +26,7 @@ def setup_logging():
 
     log_dir = DATA_DIR / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
-    log_file = log_dir / "yt-sync.log"
+    log_file = log_dir / "tubesync.log"
 
     # Create formatters
     log_format = '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -72,16 +72,16 @@ from app.ftp_upload import get_ftp_upload_progress, start_ftp_worker, check_pend
 
 # Autostart file location
 AUTOSTART_DIR = Path.home() / ".config" / "autostart"
-AUTOSTART_FILE = AUTOSTART_DIR / "yt-sync.desktop"
+AUTOSTART_FILE = AUTOSTART_DIR / "tubesync.desktop"
 DESKTOP_ENTRY = """[Desktop Entry]
 Type=Application
-Name=YT Sync
+Name=Tube Sync
 Comment=YouTube Video Downloader
 Exec={exec_path}
-Icon=yt-sync
+Icon=tubesync
 Terminal=false
 Categories=AudioVideo;Network;
-StartupWMClass=com.ytsync.app
+StartupWMClass=com.tubesync.app
 X-GNOME-Autostart-enabled=true
 """
 
@@ -96,7 +96,7 @@ def set_autostart(enabled: bool, exec_path: str = None):
     if enabled:
         AUTOSTART_DIR.mkdir(parents=True, exist_ok=True)
         if exec_path is None:
-            exec_path = str(Path(__file__).parent.parent / "yt-sync-gui")
+            exec_path = str(Path(__file__).parent.parent / "tubesync-gui")
         content = DESKTOP_ENTRY.format(exec_path=exec_path)
         AUTOSTART_FILE.write_text(content)
         logger.info(f"Autostart enabled: {AUTOSTART_FILE}")
@@ -340,7 +340,7 @@ class YTSyncWindow(Adw.ApplicationWindow):
     def __init__(self, app, backend: AsyncBackend):
         super().__init__(application=app)
         self.backend = backend
-        self.set_title("YT Sync")
+        self.set_title("Tube Sync")
         self.set_default_size(1050, 560)
         self.set_size_request(1050, 560)
 
@@ -375,7 +375,7 @@ class YTSyncWindow(Adw.ApplicationWindow):
     def create_ui(self):
         """Create the main UI."""
         header = Adw.HeaderBar()
-        header.set_title_widget(Gtk.Label(label="YT Sync"))
+        header.set_title_widget(Gtk.Label(label="Tube Sync"))
 
         # Settings button
         settings_btn = Gtk.Button()

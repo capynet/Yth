@@ -3,15 +3,20 @@ import json
 from pathlib import Path
 from typing import Optional
 
+# App metadata
+APP_NAME = "tubesync"
+APP_LABEL = "Tube Sync"
+APP_VERSION = "0.1.0"
+
 # XDG Base Directories
 XDG_CONFIG_HOME = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
 XDG_DATA_HOME = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share"))
 XDG_CACHE_HOME = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
 
 # App directories
-CONFIG_DIR = XDG_CONFIG_HOME / "yt-sync"
-DATA_DIR = XDG_DATA_HOME / "yt-sync"
-CACHE_DIR = XDG_CACHE_HOME / "yt-sync"
+CONFIG_DIR = XDG_CONFIG_HOME / APP_NAME
+DATA_DIR = XDG_DATA_HOME / APP_NAME
+CACHE_DIR = XDG_CACHE_HOME / APP_NAME
 CONFIG_FILE = CONFIG_DIR / "config.json"
 
 # Base directory for code (for finding assets, etc.)

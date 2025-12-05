@@ -1,0 +1,151 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      deb_name: ${{ steps.version.outputs.deb_name }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "deb_name=tubesync_${VERSION}_amd64.deb" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg python3-venv python3-gi python3-gi-cairo \
+            gir1.2-gtk-4.0 gir1.2-adw-1
+
+      - name: Build .deb package
+        run: |
+          chmod +x build-deb.sh
+          VERSION=${{ steps.version.outputs.version }} ./build-deb.sh
+
+      - name: Verify .deb package
+        run: |
+          ls -la dist/
+          dpkg --info dist/${{ steps.version.outputs.deb_name }}
+
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-package
+          path: dist/${{ steps.version.outputs.deb_name }}
+          retention-days: 5
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/${{ steps.version.outputs.deb_name }}
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-apt-repo:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          fetch-depth: 0
+
+      - name: Download .deb artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: deb-package
+          path: ./new-deb/
+
+      - name: Import GPG key
+        run: |
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+          # Trust the key
+          KEY_ID=$(gpg --list-secret-keys --keyid-format LONG | grep sec | head -1 | awk '{print $2}' | cut -d'/' -f2)
+          echo "${KEY_ID}:6:" | gpg --import-ownertrust
+
+      - name: Update APT repository
+        run: |
+          VERSION=${{ needs.build.outputs.version }}
+          DEB_NAME=${{ needs.build.outputs.deb_name }}
+
+          # Create pool directory structure
+          mkdir -p pool/main/t/tubesync
+
+          # Move new .deb to pool
+          mv new-deb/$DEB_NAME pool/main/t/tubesync/
+
+          # Keep only last 5 versions (optional cleanup)
+          cd pool/main/t/tubesync
+          ls -t *.deb | tail -n +6 | xargs -r rm -f
+          cd -
+
+          # Create dists structure
+          mkdir -p dists/stable/main/binary-amd64
+
+          # Generate Packages file
+          dpkg-scanpackages --arch amd64 pool/ > dists/stable/main/binary-amd64/Packages
+          gzip -9c dists/stable/main/binary-amd64/Packages > dists/stable/main/binary-amd64/Packages.gz
+
+          # Generate Release file
+          cd dists/stable
+          cat > Release << EOF
+          Origin: Capynet
+          Label: Capynet APT Repository
+          Suite: stable
+          Codename: stable
+          Architectures: amd64
+          Components: main
+          Description: Capynet APT Repository for tubesync
+          Date: $(date -Ru)
+          EOF
+
+          # Add checksums to Release
+          echo "MD5Sum:" >> Release
+          for f in main/binary-amd64/Packages main/binary-amd64/Packages.gz; do
+            if [ -f "$f" ]; then
+              echo " $(md5sum $f | cut -d' ' -f1) $(wc -c < $f) $f" >> Release
+            fi
+          done
+
+          echo "SHA256:" >> Release
+          for f in main/binary-amd64/Packages main/binary-amd64/Packages.gz; do
+            if [ -f "$f" ]; then
+              echo " $(sha256sum $f | cut -d' ' -f1) $(wc -c < $f) $f" >> Release
+            fi
+          done
+
+          cd -
+
+          # Sign Release file
+          gpg --batch --yes --armor --detach-sign -o dists/stable/Release.gpg dists/stable/Release
+          gpg --batch --yes --armor --clearsign -o dists/stable/InRelease dists/stable/Release
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add -A
+          git commit -m "Update APT repository with tubesync ${{ needs.build.outputs.version }}" || echo "No changes to commit"
+          git push origin gh-pages

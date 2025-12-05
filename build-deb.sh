@@ -1,19 +1,19 @@
 #!/bin/bash
-# Build .deb package for YT Sync
+# Build .deb package for Tube Sync
 # Usage: ./build-deb.sh [version]
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-VERSION="${1:-1.1.0}"
-PACKAGE_NAME="yt-sync"
+VERSION="${VERSION:-${1:-0.1.0}}"
+PACKAGE_NAME="tubesync"
 ARCH="amd64"
 BUILD_DIR="$SCRIPT_DIR/build/deb"
 PACKAGE_DIR="$BUILD_DIR/${PACKAGE_NAME}_${VERSION}_${ARCH}"
-INSTALL_DIR="/opt/yt-sync"
+INSTALL_DIR="/opt/tubesync"
 
 echo "==================================="
-echo "Building YT Sync .deb package"
+echo "Building Tube Sync .deb package"
 echo "Version: $VERSION"
 echo "==================================="
 
@@ -55,18 +55,18 @@ cp "$SCRIPT_DIR/requirements.txt" "$PACKAGE_DIR$INSTALL_DIR/"
 cp "$SCRIPT_DIR/oauth_setup.py" "$PACKAGE_DIR$INSTALL_DIR/"
 
 # Create GUI wrapper script
-cat > "$PACKAGE_DIR$INSTALL_DIR/yt-sync-gui" << 'SCRIPT'
-#!/opt/yt-sync/venv/bin/python3
+cat > "$PACKAGE_DIR$INSTALL_DIR/tubesync-gui" << 'SCRIPT'
+#!/opt/tubesync/venv/bin/python3
 """
-YT Sync GUI - Desktop application for monitoring and configuring YT Sync.
+Tube Sync GUI - Desktop application for monitoring and configuring Tube Sync.
 """
 
 import sys
 import os
 
 # Add the app directory to path
-sys.path.insert(0, '/opt/yt-sync')
-os.chdir('/opt/yt-sync')
+sys.path.insert(0, '/opt/tubesync')
+os.chdir('/opt/tubesync')
 
 from app.gui_gtk import main
 
@@ -74,32 +74,32 @@ if __name__ == "__main__":
     main()
 SCRIPT
 
-chmod +x "$PACKAGE_DIR$INSTALL_DIR/yt-sync-gui"
+chmod +x "$PACKAGE_DIR$INSTALL_DIR/tubesync-gui"
 
 # Create symlink in /usr/local/bin
-ln -sf "$INSTALL_DIR/yt-sync-gui" "$PACKAGE_DIR/usr/local/bin/yt-sync-gui"
-ln -sf "$INSTALL_DIR/yt-sync-gui" "$PACKAGE_DIR/usr/local/bin/yt-sync"
+ln -sf "$INSTALL_DIR/tubesync-gui" "$PACKAGE_DIR/usr/local/bin/tubesync-gui"
+ln -sf "$INSTALL_DIR/tubesync-gui" "$PACKAGE_DIR/usr/local/bin/tubesync"
 
 # Create desktop entry
-cat > "$PACKAGE_DIR/usr/share/applications/yt-sync.desktop" << 'DESKTOP'
+cat > "$PACKAGE_DIR/usr/share/applications/tubesync.desktop" << 'DESKTOP'
 [Desktop Entry]
-Name=YT Sync
+Name=Tube Sync
 Comment=YouTube Video Downloader with NAS Support
-Exec=/usr/local/bin/yt-sync-gui
-Icon=yt-sync
+Exec=/usr/local/bin/tubesync-gui
+Icon=tubesync
 Terminal=false
 Type=Application
 Categories=AudioVideo;Network;
 Keywords=youtube;download;video;
-StartupWMClass=com.ytsync.app
+StartupWMClass=com.tubesync.app
 DESKTOP
 
 # Copy icons from assets
 if [ -f "$SCRIPT_DIR/assets/icon.svg" ]; then
-    cp "$SCRIPT_DIR/assets/icon.svg" "$PACKAGE_DIR/usr/share/icons/hicolor/scalable/apps/yt-sync.svg"
+    cp "$SCRIPT_DIR/assets/icon.svg" "$PACKAGE_DIR/usr/share/icons/hicolor/scalable/apps/tubesync.svg"
 fi
 if [ -f "$SCRIPT_DIR/assets/icon.png" ]; then
-    cp "$SCRIPT_DIR/assets/icon.png" "$PACKAGE_DIR/usr/share/icons/hicolor/256x256/apps/yt-sync.png"
+    cp "$SCRIPT_DIR/assets/icon.png" "$PACKAGE_DIR/usr/share/icons/hicolor/256x256/apps/tubesync.png"
     mkdir -p "$PACKAGE_DIR$INSTALL_DIR/assets"
     cp "$SCRIPT_DIR/assets/icon.png" "$PACKAGE_DIR$INSTALL_DIR/assets/icon.png"
 fi
@@ -112,18 +112,18 @@ Section: video
 Priority: optional
 Architecture: $ARCH
 Depends: python3 (>= 3.10), python3-venv, python3-gi, python3-gi-cairo, gir1.2-gtk-4.0, gir1.2-adw-1, libadwaita-1-0, gir1.2-ayatanaappindicator3-0.1, ffmpeg
-Maintainer: YT Sync <noreply@example.com>
+Maintainer: Capynet <capynet@users.noreply.github.com>
 Description: YouTube Video Downloader with NAS Support
  Automatic YouTube video downloader with NAS upload support.
  Modern GTK4/Libadwaita desktop application with system tray.
  .
  Features:
   - Auto-downloads videos from YouTube subscriptions
-  - Parallel downloads and NAS uploads via SMB
+  - Parallel downloads and uploads via SMB/FTP
   - Separates Shorts into dedicated folder
   - System tray with background operation
   - YouTube API quota tracking
-Homepage: https://github.com/example/yt-sync
+Homepage: https://github.com/capynet/tubesync
 CONTROL
 
 # Create postinst script
@@ -143,16 +143,16 @@ fi
 
 echo ""
 echo "==================================="
-echo "YT Sync installed successfully!"
+echo "Tube Sync installed successfully!"
 echo "==================================="
 echo ""
 echo "To start:"
-echo "  1. Run: yt-sync-gui (or find 'YT Sync' in your applications)"
-echo "  2. Configure NAS settings in the app"
+echo "  1. Run: tubesync-gui (or find 'Tube Sync' in your applications)"
+echo "  2. Configure SMB/FTP settings in the app"
 echo "  3. Set up YouTube API credentials if needed"
 echo ""
-echo "Data is stored in: ~/.local/share/yt-sync/"
-echo "Config is stored in: ~/.config/yt-sync/"
+echo "Data is stored in: ~/.local/share/tubesync/"
+echo "Config is stored in: ~/.config/tubesync/"
 echo ""
 POSTINST
 chmod +x "$PACKAGE_DIR/DEBIAN/postinst"
@@ -178,11 +178,11 @@ esac
 
 if [ "$1" = "purge" ]; then
     # Remove app directory
-    rm -rf /opt/yt-sync
+    rm -rf /opt/tubesync
 
     echo ""
-    echo "Note: User data preserved in ~/.local/share/yt-sync/"
-    echo "      and ~/.config/yt-sync/"
+    echo "Note: User data preserved in ~/.local/share/tubesync/"
+    echo "      and ~/.config/tubesync/"
     echo "Remove manually if no longer needed."
     echo ""
 fi

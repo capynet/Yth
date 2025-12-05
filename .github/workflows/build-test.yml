@@ -1,0 +1,37 @@
+name: Build Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg python3-venv python3-gi python3-gi-cairo \
+            gir1.2-gtk-4.0 gir1.2-adw-1
+
+      - name: Build .deb package (test)
+        run: |
+          chmod +x build-deb.sh
+          VERSION=0.0.0-test ./build-deb.sh
+
+      - name: Verify .deb package
+        run: |
+          ls -la dist/
+          dpkg --info dist/tubesync_0.0.0-test_amd64.deb
+
+      - name: Test package contents
+        run: |
+          dpkg -c dist/tubesync_0.0.0-test_amd64.deb | head -50

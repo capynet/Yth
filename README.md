@@ -1,6 +1,7 @@
-# YT Sync
-`./yt-sync-gui`
-pkill -f yt-sync; ./yt-sync-gui
+# Tube Sync
+
+[![Build Test](https://github.com/capynet/tubesync/actions/workflows/build-test.yml/badge.svg)](https://github.com/capynet/tubesync/actions/workflows/build-test.yml)
+[![Release](https://github.com/capynet/tubesync/actions/workflows/release.yml/badge.svg)](https://github.com/capynet/tubesync/releases)
 
 Automatic YouTube video downloader with NAS upload support, CLI dashboard and desktop GUI.
 
@@ -8,23 +9,51 @@ Automatic YouTube video downloader with NAS upload support, CLI dashboard and de
 
 - Auto-downloads videos from YouTube subscriptions (via YouTube Data API)
 - Parallel downloads (3 concurrent)
-- Parallel NAS uploads via SMB (5 concurrent)
+- Parallel NAS uploads via SMB or FTP (5 concurrent)
 - Separates Shorts (<=60s) into dedicated folder
 - Manual subtitles download (Spanish/English) embedded in MP4
 - Real-time CLI dashboard (htop-style)
-- Desktop GUI application (Flet/Flutter)
+- Desktop GUI application (GTK4/Libadwaita)
 - NAS configuration via GUI
 - Skips live streams automatically
 - YouTube API quota management with automatic backoff
 
 ## Quick Install
 
-### One-Line Install (Recommended)
+### APT Repository (Recommended for Debian/Ubuntu)
+
+Add the Capynet APT repository and install with `apt`:
+
+```bash
+# Add GPG key
+curl -fsSL https://capynet.github.io/tubesync/capynet-apt.gpg | sudo gpg --dearmor -o /usr/share/keyrings/capynet.gpg
+
+# Add repository
+echo "deb [signed-by=/usr/share/keyrings/capynet.gpg] https://capynet.github.io/tubesync stable main" | sudo tee /etc/apt/sources.list.d/capynet.list
+
+# Install
+sudo apt update
+sudo apt install tubesync
+```
+
+Updates are automatically available via `apt upgrade`.
+
+### Download .deb from GitHub Releases
+
+Download the latest `.deb` from [Releases](https://github.com/capynet/tubesync/releases) and install:
+
+```bash
+wget https://github.com/capynet/tubesync/releases/latest/download/tubesync_0.1.0_amd64.deb
+sudo dpkg -i tubesync_*.deb
+sudo apt-get install -f  # Install dependencies if needed
+```
+
+### One-Line Install (from source)
 
 The installer automatically detects your OS and installs all dependencies:
 
 ```bash
-git clone <repo-url> yt-sync && cd yt-sync
+git clone https://github.com/capynet/tubesync.git && cd tubesync
 ./install.sh
 ```
 
@@ -34,61 +63,39 @@ Supported systems:
 - **Arch Linux**: pacman packages
 - **macOS**: Homebrew packages
 
-### Pre-built Packages
-
-#### Linux (.deb)
-
-Download the latest `.deb` from releases and install:
-
-```bash
-sudo dpkg -i yt-sync_1.0.0_amd64.deb
-sudo apt-get install -f  # Install dependencies if needed
-```
-
-#### macOS (.dmg)
-
-Download the latest `.dmg` from releases:
-
-1. Open the DMG file
-2. Drag 'YT Sync' to Applications
-3. Open from Applications or Spotlight
-
-Note: You may need to allow the app in System Preferences > Security & Privacy
-
 ## Manual Installation
 
 ### 1. Install system dependencies
 
 **Debian/Ubuntu:**
 ```bash
-sudo apt install python3 python3-pip python3-venv ffmpeg libmpv2
+sudo apt install python3 python3-pip python3-venv python3-gi python3-gi-cairo \
+    gir1.2-gtk-4.0 gir1.2-adw-1 ffmpeg
 ```
 
 **Fedora:**
 ```bash
-sudo dnf install python3 python3-pip ffmpeg mpv-libs
+sudo dnf install python3 python3-pip ffmpeg gtk4 libadwaita python3-gobject
 ```
 
 **Arch Linux:**
 ```bash
-sudo pacman -S python python-pip ffmpeg mpv
+sudo pacman -S python python-pip ffmpeg gtk4 libadwaita python-gobject
 ```
 
 **macOS:**
 ```bash
-brew install python3 ffmpeg mpv
+brew install python3 ffmpeg gtk4 libadwaita pygobject3
 ```
 
 ### 2. Clone and configure
 
 ```bash
-git clone <repo-url> yt-sync
-cd yt-sync
+git clone https://github.com/capynet/tubesync.git
+cd tubesync
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
-nano .env  # Edit with your configuration
 ```
 
 ### 3. YouTube API Setup (optional, for subscription downloads)
@@ -96,7 +103,7 @@ nano .env  # Edit with your configuration
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a project and enable YouTube Data API v3
 3. Create OAuth 2.0 credentials (Desktop app)
-4. Download as `google-client.json` in project root
+4. Download as `google-client.json` in `~/.config/tubesync/`
 5. Run OAuth setup:
    ```bash
    source venv/bin/activate
@@ -107,18 +114,10 @@ nano .env  # Edit with your configuration
 ### 4. Install CLI globally
 
 ```bash
-chmod +x yt-sync yt-sync-service yt-sync-gui
-sudo ln -sf $(pwd)/yt-sync /usr/local/bin/yt-sync
-sudo ln -sf $(pwd)/yt-sync-gui /usr/local/bin/yt-sync-gui
+chmod +x tubesync tubesync-service tubesync-gui
+sudo ln -sf $(pwd)/tubesync /usr/local/bin/tubesync
+sudo ln -sf $(pwd)/tubesync-gui /usr/local/bin/tubesync-gui
 ```
-
-### 5. Start the service
-
-```bash
-./yt-sync-service
-```
-
-Or install as systemd service (see below).
 
 ## Usage
 
@@ -126,62 +125,72 @@ Or install as systemd service (see below).
 
 ```bash
 # Launch desktop GUI
-yt-sync-gui
+tubesync-gui
 ```
+
+Or find "Tube Sync" in your applications menu.
 
 ### CLI Dashboard
 
 ```bash
 # Watch mode (default - real-time updates like htop)
-yt-sync
+tubesync
 
 # Single snapshot (no watch)
-yt-sync --help
+tubesync --help
 ```
 
 ### Service Management (systemd)
 
 ```bash
 # Start/stop
-sudo systemctl start yt-sync
-sudo systemctl stop yt-sync
-sudo systemctl restart yt-sync
-sudo systemctl status yt-sync
+sudo systemctl start tubesync
+sudo systemctl stop tubesync
+sudo systemctl restart tubesync
+sudo systemctl status tubesync
 
 # Enable auto-start on boot
-sudo systemctl enable yt-sync
+sudo systemctl enable tubesync
 
 # View logs
-journalctl -u yt-sync -f
+journalctl -u tubesync -f
 ```
 
 ### Manual service (without systemd)
 
 ```bash
 # Start in foreground
-./yt-sync-service
+./tubesync-service
 
 # Start in background
-nohup ./yt-sync-service > /dev/null 2>&1 &
+nohup ./tubesync-service > /dev/null 2>&1 &
 ```
 
 ## Configuration
 
-Edit `.env` file:
+Configuration is stored in `~/.config/tubesync/config.json`. You can configure settings through the GUI or edit the file directly.
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `VIDEO_QUALITY` | Video quality (best, 1080p, 720p, 480p) | best |
-| `MAX_CONCURRENT_DOWNLOADS` | Parallel downloads | 3 |
-| `NAS_ENABLED` | Enable NAS upload | false |
-| `NAS_HOST` | NAS IP address | - |
-| `NAS_SHARE` | SMB share name | - |
-| `NAS_USER` | SMB username | - |
-| `NAS_PASSWORD` | SMB password | - |
-| `NAS_PATH` | Path for videos | /youtube |
-| `NAS_SHORTS_PATH` | Path for shorts | /shorts |
-| `NAS_DELETE_AFTER_UPLOAD` | Delete local after upload | false |
-| `SHORTS_MAX_DURATION` | Max duration for shorts (seconds) | 60 |
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `video_quality` | Video quality (best, 1080p, 720p, 480p) | best |
+| `max_concurrent_downloads` | Parallel downloads | 3 |
+| `smb_enabled` | Enable SMB upload | false |
+| `smb_host` | SMB server IP address | - |
+| `smb_share` | SMB share name | - |
+| `smb_user` | SMB username | - |
+| `smb_password` | SMB password | - |
+| `smb_path` | Path for videos | /youtube |
+| `smb_shorts_path` | Path for shorts | /shorts |
+| `ftp_enabled` | Enable FTP upload | false |
+| `ftp_host` | FTP server address | - |
+| `ftp_port` | FTP port | 21 |
+| `ftp_user` | FTP username | - |
+| `ftp_password` | FTP password | - |
+| `ftp_path` | FTP path for videos | /youtube |
+| `ftp_shorts_path` | FTP path for shorts | /shorts |
+| `ftp_use_tls` | Use FTPS (TLS) | false |
+| `delete_after_upload` | Delete local after upload | true |
+| `shorts_max_duration` | Max duration for shorts (seconds) | 60 |
 
 ## Building Packages
 
@@ -192,34 +201,16 @@ Edit `.env` file:
 
 # Example:
 ./build-deb.sh 1.0.0
-# Output: dist/yt-sync_1.0.0_amd64.deb
+# Output: dist/tubesync_1.0.0_amd64.deb
 ```
-
-### Build .dmg (macOS)
-
-Run on macOS only:
-
-```bash
-./build-macos.sh [version]
-
-# Example:
-./build-macos.sh 1.0.0
-# Output: dist/YT-Sync-1.0.0.dmg
-```
-
-Requirements for macOS build:
-- macOS 10.15+
-- Python 3.9+
-- Homebrew
-- create-dmg (installed automatically)
 
 ## How It Works
 
 1. **Auto-download (every hour)**: Scans your subscriptions and downloads new videos from the last 5 days
 2. **Download**: yt-dlp downloads in best quality with embedded metadata and subtitles
-3. **NAS Upload**: Videos are automatically uploaded via SMB (5 concurrent)
+3. **NAS Upload**: Videos are automatically uploaded via SMB or FTP (5 concurrent)
 4. **Shorts Separation**: Videos <=60s go to `/shorts`, the rest to `/youtube`
-5. **Cleanup**: Local files are deleted after successful NAS upload
+5. **Cleanup**: Local files are deleted after successful upload (configurable)
 
 ## API Endpoints
 
@@ -241,45 +232,52 @@ The service exposes a REST API on `http://127.0.0.1:8000`:
 ## File Structure
 
 ```
-yt-sync/
+tubesync/
 ├── app/                    # Application code
 │   ├── main.py            # FastAPI app
 │   ├── downloader.py      # yt-dlp wrapper
-│   ├── nas_upload.py      # SMB upload
+│   ├── nas_upload.py      # SMB/FTP upload
 │   ├── youtube_api.py     # YouTube API client
 │   ├── auto_download.py   # Subscription downloads
 │   ├── ytcli.py           # CLI dashboard
-│   ├── gui.py             # Desktop GUI (Flet)
+│   ├── gui_gtk.py         # Desktop GUI (GTK4)
 │   ├── config.py          # Settings
 │   ├── database.py        # SQLite setup
 │   └── models.py          # SQLAlchemy models
 ├── venv/                   # Python virtual environment
-├── data/                   # SQLite database
-├── downloads/              # Downloaded videos
-├── .env                    # Configuration (gitignored)
-├── .env.example           # Configuration template
+├── .github/workflows/      # CI/CD workflows
+├── scripts/               # Utility scripts
 ├── requirements.txt
 ├── install.sh             # Installation script
 ├── build-deb.sh           # Build .deb package
-├── build-macos.sh         # Build macOS .dmg
 ├── oauth_setup.py         # YouTube OAuth setup
-├── yt-sync                # CLI command
-├── yt-sync-gui            # Desktop GUI application
-├── yt-sync-service        # Service entry point
-├── yt-sync.service        # Systemd unit file
+├── tubesync               # CLI command
+├── tubesync-gui           # Desktop GUI application
+├── tubesync-service       # Service entry point
+├── tubesync.service       # Systemd unit file
 └── README.md
 ```
+
+## Data Locations
+
+Following XDG Base Directory Specification:
+
+| Location | Purpose |
+|----------|---------|
+| `~/.config/tubesync/` | Configuration files |
+| `~/.local/share/tubesync/` | Database and downloads |
+| `~/.cache/tubesync/` | Temporary cache |
 
 ## Troubleshooting
 
 **CLI says "Connecting to API..."**
-- Make sure the service is running: `systemctl status yt-sync`
-- Or start manually: `./yt-sync-service`
+- Make sure the service is running: `systemctl status tubesync`
+- Or start manually: `./tubesync-service`
 
 **Uploads stuck at "X videos waiting"**
 - Check NAS connectivity: `ping <NAS_HOST>`
-- Check SMB credentials in `.env`
-- View logs: `journalctl -u yt-sync -f`
+- Check SMB/FTP credentials in settings
+- View logs: `journalctl -u tubesync -f`
 
 **YouTube API quota exceeded**
 - Quota resets at midnight Pacific Time
@@ -287,12 +285,11 @@ yt-sync/
 - App will automatically resume when quota resets
 
 **Permission denied errors**
-- Make sure scripts are executable: `chmod +x yt-sync yt-sync-service`
-- Check file ownership in data/ and downloads/
+- Make sure scripts are executable: `chmod +x tubesync tubesync-service`
+- Check file ownership in data directories
 
-**GUI won't start (libmpv error)**
-- Install libmpv: `sudo apt install libmpv2`
-- If still failing, create symlink: `sudo ln -sf /usr/lib/x86_64-linux-gnu/libmpv.so.2 /usr/lib/x86_64-linux-gnu/libmpv.so.1`
+**GUI won't start**
+- Install GTK4 dependencies: `sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1`
 
 ## License
 
