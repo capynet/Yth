@@ -55,7 +55,7 @@ def is_short_video(duration: int) -> bool:
 
 
 def init_smb_session():
-    """Initialize SMB session with NAS credentials."""
+    """Initialize SMB session with server credentials."""
     if not settings.smb_enabled:
         return False
 
@@ -121,19 +121,19 @@ def ensure_smb_directory(is_short: bool = False):
         # Try to create directory (will fail silently if exists)
         try:
             mkdir(smb_dir)
-            logger.info(f"Created NAS directory: {smb_dir}")
+            logger.info(f"Created SMB directory: {smb_dir}")
         except OSError:
             # Directory likely exists
             pass
         return True
     except Exception as e:
-        logger.error(f"Failed to ensure NAS directory: {e}")
+        logger.error(f"Failed to ensure SMB directory: {e}")
         return False
 
 
-def upload_file_to_nas(local_path: str, remote_filename: str, video_title: str = "", video_id: int = 0, is_short: bool = False, worker_id: int = 0) -> tuple[bool, str]:
+def upload_file_to_smb(local_path: str, remote_filename: str, video_title: str = "", video_id: int = 0, is_short: bool = False, worker_id: int = 0) -> tuple[bool, str]:
     """
-    Upload a file to NAS via SMB with progress tracking.
+    Upload a file via SMB with progress tracking.
     Returns (success, remote_path or error_message)
     """
     import time
@@ -219,7 +219,7 @@ def get_upload_progress() -> list[dict]:
 
 
 async def process_upload(video_id: int, worker_id: int = 0):
-    """Process a single video upload to NAS."""
+    """Process a single video upload via SMB."""
     logger.info(f"[Worker {worker_id}] Processing upload for video_id={video_id}")
 
     async with async_session() as session:
@@ -257,12 +257,12 @@ async def process_upload(video_id: int, worker_id: int = 0):
         # Run upload in executor (blocking operation)
         loop = asyncio.get_event_loop()
         success, result_msg = await loop.run_in_executor(
-            None, upload_file_to_nas, video.file_path, remote_filename, video.title, video.id, is_short, worker_id
+            None, upload_file_to_smb, video.file_path, remote_filename, video.title, video.id, is_short, worker_id
         )
 
         if success:
             video.upload_status = "uploaded"
-            video.nas_path = result_msg
+            video.nas_path = result_msg  # Using legacy field name for DB compatibility
             video.uploaded_at = datetime.utcnow()
             video.upload_error = None
             logger.info(f"Upload completed for {video.youtube_id}")
@@ -314,7 +314,7 @@ async def upload_worker(worker_id: int):
 
 
 async def start_upload_worker():
-    """Start multiple background upload workers if NAS is enabled."""
+    """Start multiple background upload workers if SMB is enabled."""
     global upload_workers
 
     if not settings.smb_enabled:

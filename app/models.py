@@ -32,11 +32,11 @@ class Video(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     downloaded_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
-    # NAS Upload tracking
+    # SMB Upload tracking (nas_path kept for DB backwards compatibility)
     upload_status: Mapped[str] = mapped_column(String(20), default="pending")  # pending, uploading, uploaded, error
     upload_error: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
     uploaded_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    nas_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # Path on NAS
+    nas_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # SMB path (legacy column name)
     upload_attempts: Mapped[int] = mapped_column(Integer, default=0)
 
     # FTP Upload tracking

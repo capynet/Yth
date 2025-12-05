@@ -3,18 +3,18 @@
 [![Build Test](https://github.com/capynet/tubesync/actions/workflows/build-test.yml/badge.svg)](https://github.com/capynet/tubesync/actions/workflows/build-test.yml)
 [![Release](https://github.com/capynet/tubesync/actions/workflows/release.yml/badge.svg)](https://github.com/capynet/tubesync/releases)
 
-Automatic YouTube video downloader with NAS upload support, CLI dashboard and desktop GUI.
+Automatic YouTube video downloader with SMB/FTP upload support, CLI dashboard and desktop GUI.
 
 ## Features
 
 - Auto-downloads videos from YouTube subscriptions (via YouTube Data API)
 - Parallel downloads (3 concurrent)
-- Parallel NAS uploads via SMB or FTP (5 concurrent)
+- Parallel uploads via SMB or FTP (5 concurrent)
 - Separates Shorts (<=60s) into dedicated folder
 - Manual subtitles download (Spanish/English) embedded in MP4
 - Real-time CLI dashboard (htop-style)
 - Desktop GUI application (GTK4/Libadwaita)
-- NAS configuration via GUI
+- SMB/FTP configuration via GUI
 - Skips live streams automatically
 - YouTube API quota management with automatic backoff
 
@@ -208,7 +208,7 @@ Configuration is stored in `~/.config/tubesync/config.json`. You can configure s
 
 1. **Auto-download (every hour)**: Scans your subscriptions and downloads new videos from the last 5 days
 2. **Download**: yt-dlp downloads in best quality with embedded metadata and subtitles
-3. **NAS Upload**: Videos are automatically uploaded via SMB or FTP (5 concurrent)
+3. **Upload**: Videos are automatically uploaded via SMB or FTP (5 concurrent)
 4. **Shorts Separation**: Videos <=60s go to `/shorts`, the rest to `/youtube`
 5. **Cleanup**: Local files are deleted after successful upload (configurable)
 
@@ -236,7 +236,8 @@ tubesync/
 ├── app/                    # Application code
 │   ├── main.py            # FastAPI app
 │   ├── downloader.py      # yt-dlp wrapper
-│   ├── nas_upload.py      # SMB/FTP upload
+│   ├── smb_upload.py      # SMB upload
+│   ├── ftp_upload.py      # FTP upload
 │   ├── youtube_api.py     # YouTube API client
 │   ├── auto_download.py   # Subscription downloads
 │   ├── ytcli.py           # CLI dashboard
@@ -275,7 +276,7 @@ Following XDG Base Directory Specification:
 - Or start manually: `./tubesync-service`
 
 **Uploads stuck at "X videos waiting"**
-- Check NAS connectivity: `ping <NAS_HOST>`
+- Check server connectivity: `ping <SMB_HOST>`
 - Check SMB/FTP credentials in settings
 - View logs: `journalctl -u tubesync -f`
 

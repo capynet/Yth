@@ -84,7 +84,7 @@ ln -sf "$INSTALL_DIR/tubesync-gui" "$PACKAGE_DIR/usr/local/bin/tubesync"
 cat > "$PACKAGE_DIR/usr/share/applications/tubesync.desktop" << 'DESKTOP'
 [Desktop Entry]
 Name=Tube Sync
-Comment=YouTube Video Downloader with NAS Support
+Comment=YouTube Video Downloader with SMB/FTP Support
 Exec=/usr/local/bin/tubesync-gui
 Icon=tubesync
 Terminal=false
@@ -113,8 +113,8 @@ Priority: optional
 Architecture: $ARCH
 Depends: python3 (>= 3.10), python3-venv, python3-gi, python3-gi-cairo, gir1.2-gtk-4.0, gir1.2-adw-1, libadwaita-1-0, gir1.2-ayatanaappindicator3-0.1, ffmpeg
 Maintainer: Capynet <capynet@users.noreply.github.com>
-Description: YouTube Video Downloader with NAS Support
- Automatic YouTube video downloader with NAS upload support.
+Description: YouTube Video Downloader with SMB/FTP Support
+ Automatic YouTube video downloader with SMB/FTP upload support.
  Modern GTK4/Libadwaita desktop application with system tray.
  .
  Features:

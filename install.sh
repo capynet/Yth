@@ -266,7 +266,7 @@ print_completion() {
     echo "  tubesync-gui        Desktop GUI application"
     echo ""
     echo "Quick start:"
-    echo "  1. Edit $SCRIPT_DIR/.env with your NAS configuration"
+    echo "  1. Edit $SCRIPT_DIR/.env with your SMB/FTP configuration"
     echo "  2. (Optional) Copy google-client.json for YouTube API"
     echo "  3. Start the service:"
     if [[ "$SYSTEMD_INSTALLED" == "true" ]]; then
